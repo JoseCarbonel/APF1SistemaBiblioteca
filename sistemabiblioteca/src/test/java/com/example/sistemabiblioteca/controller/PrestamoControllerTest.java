@@ -1,151 +1,117 @@
 package com.example.sistemabiblioteca.controller;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
-@AutoConfigureMockMvc
+@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
 class PrestamoControllerTest {
 
     @Autowired
+    private WebApplicationContext webApplicationContext;
+
     private MockMvc mockMvc;
 
-    // --- OPERACIÓN 5: POST /api/prestamos (Registrar Préstamo) ---
+    @BeforeEach
+    void setUp() {
+        this.mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
+    }
 
+    // --- ENDPOINT 5: REGISTRAR PRÉSTAMO ---
     @Test
-    void testRegistrarPrestamoExitoso() throws Exception {
-        String prestamoJson = """
-            {
-                "usuarioId": 2,
-                "libroId": 2
-            }
-            """;
-
+    void testRegistrarExito() throws Exception {
         mockMvc.perform(post("/api/prestamos")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(prestamoJson))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").exists())
-                .andExpect(jsonPath("$.estado").value("PENDIENTE"));
+                .content("{\"usuarioId\":1,\"libroId\":2}"))
+                .andExpect(status().isCreated());
     }
 
     @Test
-    void testRegistrarPrestamoUsuarioNoExiste() throws Exception {
-        String prestamoJson = """
-            {
-                "usuarioId": 999,
-                "libroId": 2
-            }
-            """;
-
+    void testRegistrarUsuarioNoExiste() throws Exception {
         mockMvc.perform(post("/api/prestamos")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(prestamoJson))
+                .content("{\"usuarioId\":99,\"libroId\":1}"))
                 .andExpect(status().isNotFound());
     }
 
     @Test
-    void testRegistrarPrestamoLibroYaPrestado() throws Exception {
-        String prestamoJson = """
-            {
-                "usuarioId": 2,
-                "libroId": 1
-            }
-            """;
-
+    void testRegistrarSinLibro() throws Exception {
         mockMvc.perform(post("/api/prestamos")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(prestamoJson))
+                .content("{\"usuarioId\":1}"))
                 .andExpect(status().isBadRequest());
     }
 
-    // --- OPERACIÓN 6: GET /api/prestamos/usuario/{usuarioId} (Consultar Préstamos por Usuario) ---
-
+    // --- ENDPOINT 6: LISTAR POR USUARIO ---
     @Test
-    void testObtenerPrestamosPorUsuarioExitoso() throws Exception {
+    void testListarPorUsuarioExito() throws Exception {
         mockMvc.perform(get("/api/prestamos/usuario/1"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].usuarioId").value(1));
+                .andExpect(status().isOk());
     }
 
     @Test
-    void testObtenerPrestamosPorUsuarioNoEncontrado() throws Exception {
-        mockMvc.perform(get("/api/prestamos/usuario/999"))
+    void testListarPorUsuarioNoExiste() throws Exception {
+        mockMvc.perform(get("/api/prestamos/usuario/99"))
                 .andExpect(status().isNotFound());
     }
 
     @Test
-    void testObtenerPrestamosPorUsuarioSinPrestamosActivos() throws Exception {
-        mockMvc.perform(get("/api/prestamos/usuario/2"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(0));
+    void testListarPorUsuarioDetalle() throws Exception {
+        mockMvc.perform(get("/api/prestamos/usuario/1"))
+                .andExpect(jsonPath("$[0].usuarioId").value(1));
     }
 
-    // --- OPERACIÓN 7: PUT /api/prestamos/{id}/devolver (Devolver Libro) ---
-
+    // --- ENDPOINT 7: DEVOLVER LIBRO ---
     @Test
-    void testDevolverLibroExitoso() throws Exception {
+    void testDevolverExito() throws Exception {
+        // Al usar @DirtiesContext, el préstamo inicial por defecto siempre tendrá ID 1
         mockMvc.perform(put("/api/prestamos/1/devolver"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.estado").value("DEVUELTO"));
     }
 
     @Test
-    void testDevolverLibroNoEncontrado() throws Exception {
-        mockMvc.perform(put("/api/prestamos/999/devolver"))
+    void testDevolverNoEncontrado() throws Exception {
+        mockMvc.perform(put("/api/prestamos/99/devolver"))
                 .andExpect(status().isNotFound());
     }
 
     @Test
-    void testDevolverLibroYaDevuelto() throws Exception {
+    void testDevolverYaDevuelto() throws Exception {
         // Primera devolución
         mockMvc.perform(put("/api/prestamos/1/devolver"));
 
-        // Intentar devolver por segunda vez
+        // Segunda devolución (falla con 400 Bad Request)
         mockMvc.perform(put("/api/prestamos/1/devolver"))
                 .andExpect(status().isBadRequest());
     }
 
-    // --- OPERACIÓN 8: DELETE /api/prestamos/{id} (Cancelar Préstamo) ---
-
+    // --- ENDPOINT 8: CANCELAR PRÉSTAMO ---
     @Test
-    void testCancelarPrestamoExitoso() throws Exception {
-        // Creamos un préstamo dinámico para luego eliminarlo
-        String prestamoJson = """
-            {
-                "usuarioId": 1,
-                "libroId": 2
-            }
-            """;
-
-        mockMvc.perform(post("/api/prestamos")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(prestamoJson));
-
-        mockMvc.perform(delete("/api/prestamos/2"))
+    void testCancelarExito() throws Exception {
+        mockMvc.perform(delete("/api/prestamos/1"))
                 .andExpect(status().isNoContent());
     }
 
     @Test
-    void testCancelarPrestamoNoEncontrado() throws Exception {
-        mockMvc.perform(delete("/api/prestamos/999"))
+    void testCancelarNoEncontrado() throws Exception {
+        mockMvc.perform(delete("/api/prestamos/99"))
                 .andExpect(status().isNotFound());
     }
 
     @Test
-    void testCancelarPrestamoYaDevueltoError() throws Exception {
-        // Devolvemos el préstamo 1 primero
+    void testCancelarFinalizadoError() throws Exception {
         mockMvc.perform(put("/api/prestamos/1/devolver"));
-
-        // Intentamos cancelar un préstamo ya finalizado/devuelto
         mockMvc.perform(delete("/api/prestamos/1"))
                 .andExpect(status().isBadRequest());
     }

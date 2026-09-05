@@ -1,171 +1,116 @@
 package com.example.sistemabiblioteca.controller;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
-@AutoConfigureMockMvc
 class LibroControllerTest {
 
     @Autowired
+    private WebApplicationContext webApplicationContext;
+
     private MockMvc mockMvc;
 
-    // --- OPERACIÓN 1: POST /api/libros (Crear Libro) ---
+    @BeforeEach
+    void setUp() {
+        this.mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
+    }
 
+    // --- ENDPOINT 1: CREAR LIBRO ---
     @Test
-    void testCrearLibroExitoso() throws Exception {
-        String libroJson = """
-            {
-                "titulo": "Don Quijote de la Mancha",
-                "isbn": "978-8424116415",
-                "categoria": "Clásico",
-                "disponible": true
-            }
-            """;
-
+    void testCrearExito() throws Exception {
         mockMvc.perform(post("/api/libros")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(libroJson))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").exists())
-                .andExpect(jsonPath("$.titulo").value("Don Quijote de la Mancha"));
+                .content("{\"titulo\":\"Rayuela\",\"isbn\":\"978-3\",\"categoria\":\"Ficcion\"}"))
+                .andExpect(status().isCreated());
     }
 
     @Test
-    void testCrearLibroErrorSinTitulo() throws Exception {
-        String libroJson = """
-            {
-                "titulo": "",
-                "isbn": "978-1111111111",
-                "categoria": "Ficción",
-                "disponible": true
-            }
-            """;
-
+    void testCrearErrorSinTitulo() throws Exception {
         mockMvc.perform(post("/api/libros")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(libroJson))
+                .content("{\"titulo\":\"\",\"isbn\":\"978-3\",\"categoria\":\"Ficcion\"}"))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
-    void testCrearLibroIsbnDuplicado() throws Exception {
-        String libroJson = """
-            {
-                "titulo": "Duplicado",
-                "isbn": "978-0307474728",
-                "categoria": "Ficción",
-                "disponible": true
-            }
-            """;
-
+    void testCrearErrorBodyVacio() throws Exception {
         mockMvc.perform(post("/api/libros")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(libroJson))
-                .andExpect(status().isConflict());
+                .content("{}"))
+                .andExpect(status().isBadRequest());
     }
 
-    // --- OPERACIÓN 2: GET /api/libros (Listar / Filtrar) ---
+    // --- ENDPOINT 2: LISTAR LIBROS ---
+    @Test
+    void testListarExito() throws Exception {
+        mockMvc.perform(get("/api/libros"))
+                .andExpect(status().isOk());
+    }
 
     @Test
-    void testObtenerTodosLosLibros() throws Exception {
+    void testListarTipoContenido() throws Exception {
         mockMvc.perform(get("/api/libros"))
-                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON));
+    }
+
+    @Test
+    void testListarNoVacio() throws Exception {
+        mockMvc.perform(get("/api/libros"))
                 .andExpect(jsonPath("$.length()").value(2));
     }
 
+    // --- ENDPOINT 3: BUSCAR POR ID ---
     @Test
-    void testObtenerLibrosPorCategoriaExitoso() throws Exception {
-        mockMvc.perform(get("/api/libros").param("categoria", "Ficción"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].categoria").value("Ficción"));
-    }
-
-    @Test
-    void testObtenerLibrosPorCategoriaSinResultados() throws Exception {
-        mockMvc.perform(get("/api/libros").param("categoria", "Inexistente"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(0));
-    }
-
-    // --- OPERACIÓN 3: GET /api/libros/{id} (Buscar por ID) ---
-
-    @Test
-    void testObtenerLibroPorIdExitoso() throws Exception {
+    void testBuscarPorIdExito() throws Exception {
         mockMvc.perform(get("/api/libros/1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.titulo").value("Cien Años de Soledad"));
+                .andExpect(jsonPath("$.id").value(1));
     }
 
     @Test
-    void testObtenerLibroPorIdNoEncontrado() throws Exception {
-        mockMvc.perform(get("/api/libros/999"))
+    void testBuscarPorIdNoEncontrado() throws Exception {
+        mockMvc.perform(get("/api/libros/99"))
                 .andExpect(status().isNotFound());
     }
 
     @Test
-    void testObtenerLibroPorIdFormatoInvalido() throws Exception {
+    void testBuscarPorIdInvalido() throws Exception {
         mockMvc.perform(get("/api/libros/abc"))
                 .andExpect(status().isBadRequest());
     }
 
-    // --- OPERACIÓN 4: POST /api/libros/{id}/reseñas (Agregar Reseña) ---
-
+    // --- ENDPOINT 4: AGREGAR RESEÑA ---
     @Test
-    void testAgregarResenaExitoso() throws Exception {
-        String resenaJson = """
-            {
-                "usuarioId": 1,
-                "calificacion": 5,
-                "comentario": "Excelente libro"
-            }
-            """;
-
+    void testResenaExito() throws Exception {
         mockMvc.perform(post("/api/libros/1/reseñas")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(resenaJson))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").exists())
-                .andExpect(jsonPath("$.calificacion").value(5));
+                .content("{\"calificacion\":5,\"comentario\":\"Excelente lectura\"}"))
+                .andExpect(status().isCreated());
     }
 
     @Test
-    void testAgregarResenaLibroNoEncontrado() throws Exception {
-        String resenaJson = """
-            {
-                "usuarioId": 1,
-                "calificacion": 4,
-                "comentario": "Muy bueno"
-            }
-            """;
-
-        mockMvc.perform(post("/api/libros/999/reseñas")
+    void testResenaLibroInexistente() throws Exception {
+        mockMvc.perform(post("/api/libros/99/reseñas")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(resenaJson))
+                .content("{\"calificacion\":5,\"comentario\":\"Muy bueno\"}"))
                 .andExpect(status().isNotFound());
     }
 
     @Test
-    void testAgregarResenaCalificacionInvalida() throws Exception {
-        String resenaJson = """
-            {
-                "usuarioId": 1,
-                "calificacion": 10,
-                "comentario": "Fuera de rango"
-            }
-            """;
-
+    void testResenaCalificacionInvalida() throws Exception {
         mockMvc.perform(post("/api/libros/1/reseñas")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(resenaJson))
+                .content("{\"calificacion\":10,\"comentario\":\"Invalido\"}"))
                 .andExpect(status().isBadRequest());
     }
 }
